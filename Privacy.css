@@ -1,0 +1,60 @@
+#solid{
+    height: 40vw;
+    width: 80vw;
+    margin-bottom: 5vw;
+    border-radius: 30px;
+    margin-left: 8vw;
+    box-shadow: 5px 10px 30px black;
+    background-color: rgb(0, 145, 255);
+}
+
+#pass{
+    margin-top: 3vw;
+    padding-top: 4vw;
+    font-size: 4vw;
+
+}
+
+#lps{
+    font-size: 3.6vw;
+    padding-left: 3.5vw;
+    text-align: left;
+}
+
+#lps2{
+    font-size: 3.6vw;
+    padding-left: 3.5vw;
+    text-align: left;
+}
+
+#lps3{
+    font-size: 3.6vw;
+    padding: 4vw;
+    text-align: center;
+}
+
+#lps4{
+    font-size: 3.6vw;
+    padding-left: 3vw;
+    text-align: left;
+}
+
+#lps5{
+    font-size: 3.6vw;
+    padding: 4vw;
+    padding-top: 1VW;
+    text-align: center;
+}
+
+#lpsX{
+    font-size: 3.6vw;
+    padding-left: 3.5vw;
+    text-align: left;
+}
+
+#lpsX1{
+    font-size: 3.6vw;
+    padding: 4vw;
+    padding-top: 1VW;
+    text-align: center;
+}

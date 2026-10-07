@@ -1,0 +1,199 @@
+#info{
+    color: white;
+    text-align: left;
+    font-size: 4vw;
+    width: 85vw;
+    height: 60vw;
+    margin-left: 6vw;
+    margin-bottom: 1vw;
+    margin-top: -2vw;
+    padding: 1vw;
+    border-radius: 20px;
+}
+
+#place2{
+    background-color: rgb(0, 145, 255);
+    padding: 2vw;
+    margin: 2vw;
+    margin-bottom: 4vw;
+    height: 8vw;
+    border-radius: 10px;
+    text-shadow: 2px 2px 2px black;
+    box-shadow: 3px 15px 40px black;
+}
+
+#hgk{
+    position: absolute;
+    width: 18vw;
+    height: 20vw;
+    top: 35vw;
+    filter: drop-shadow(2px 2px 2px black);
+}
+
+#scp{
+    position: absolute;
+    left: 30vw;
+    top: 43vw;
+}
+
+#hkl{
+    position: absolute;
+    width: 10vw;
+    height: 13vw;
+    top: 54vw;
+    left: 17vw;
+    filter: drop-shadow(2px 2px 2px black);
+}
+
+#bbc{
+    position: absolute;
+    left: 30vw;
+    top: 59vw;
+}
+
+#tyu{
+    position: absolute;
+    width: 14vw;
+    height: 14vw;
+    top: 70vw;
+    left: 14vw;
+    filter: drop-shadow(2px 2px 2px black);
+}
+
+#bnm{
+    position: absolute;
+    left: 30vw;
+    top: 74vw;
+}
+
+#xxd{
+    position: absolute;
+    width: 13vw;
+    height: 13vw;
+    top: 86vw;
+    left: 15vw;
+    filter: drop-shadow(2px 2px 2px black);
+}
+
+#hvb{
+    position: absolute;
+    left: 30vw;
+    top: 88vw;
+}
+
+.max{
+    text-align: left;
+    border: 2px solid red;
+    text-shadow: 1px 4px 10px black;
+}
+
+#ytb{
+    margin-left: 8vw;
+    filter: drop-shadow(2px 2px 2px black);
+    width: 13vw;
+    height: 10vw;
+}
+
+#tcn{
+    position: absolute;
+    top: 122vw;
+    left: 35vw;
+    color: red;
+}.box{
+    text-align: left;
+    border: 2px solid blue;
+    text-shadow: 1px 4px 10px rgb(0, 0, 0);
+}
+
+#fbi{
+    margin-left: 8vw;
+    filter: drop-shadow(2px 4px 6px black);
+    width: 12vw;
+    height: 12vw;
+}
+
+#kkl{
+    position: absolute;
+    top: 140vw;
+    left: 37vw;
+    color: blue;
+}
+
+.gta{
+    text-align: left;
+    border: 2px solid rgb(146, 23, 157);
+    text-shadow: 1px 4px 10px rgb(0, 0, 0);
+}
+
+#inst{
+    margin-left: 9vw;
+    filter: drop-shadow(2px 2px 2px black);
+    width: 11vw;
+    height: 11vw;
+}
+
+#panz{
+    position: absolute;
+    top: 160vw;
+    left: 40vw;
+    color: rgb(146, 23, 157);
+}
+
+
+
+.bag{
+    text-align: left;
+    border: 2px solid rgb(40, 46, 152);
+    text-shadow: 1px 4px 10px rgb(0, 0, 0);
+}
+
+#oxz{
+    margin-left: 9vw;
+    filter: drop-shadow(2px 2px 2px black);
+    width: 11vw;
+    height: 11vw;
+}
+
+#lin{
+    position: absolute;
+    top: 180vw;
+    left: 38vw;
+    color: rgb(40, 46, 152);
+}
+
+#cont{
+    font-family: 'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif ;
+    font-size: 3.5vw;
+    padding-top: 4vw;
+    margin-bottom: 15vw;
+
+}
+
+input{
+    margin-left:8vw ;
+    height:5vw ;
+    width: 55vw;
+    border-radius: 10px;
+    margin-bottom:3vw ;
+    padding: 1vw;
+    font-size: 3.5vw;
+}
+
+label{
+    margin-left: 10vw;
+}
+
+textarea{
+    margin-left: 8vw;
+    width: 60vw;
+    height: 20vw;
+    border-radius: 10px;
+    font-size: 3.5vw;
+    margin-bottom: 3vw;
+    padding: 2vw;
+}
+
+#hbn{
+    margin-left: 30vw;
+    font-size: 4vw;
+}

@@ -1,0 +1,65 @@
+#fastz{
+    width: 76vw;
+    border-radius: 20px;
+    box-shadow:8px 3px 30px 3px black;
+    margin-left: 8vw;
+    font-size: 5.4VW;
+    color: rgb(255, 255, 255);
+    font-weight: 900;
+    padding: 2vw;
+    background-color: rgb(0, 145, 255);
+}
+
+#gas{
+    font-size: 4.6vw;
+    color: black;
+}
+
+#pox{
+    width: 76vw;
+    border-radius: 60px;
+    box-shadow:8px 3px 30px 3px black;
+    margin-left: 8vw;
+    font-size: 5VW;
+    margin-top: 8vw;
+    background-color: rgb(221, 240, 255);
+    color: rgb(0, 145, 255);
+    font-weight: 900;
+    padding: 2vw;
+    border-left: 2.3vw groove rgb(0, 145, 255);
+
+}
+
+#us{
+    font-size: 4.5vw;
+    color: rgb(0, 145, 255);
+    font-weight: 900;
+}
+
+#p1{
+    color: black;
+    text-align: left;
+    padding: 3vw;
+    font-weight: 100;
+}
+
+#gx4{
+    text-align: left;
+    font-size: 4.5;
+    font-weight: 100;
+    color: black;
+    padding: 6vw;
+}
+
+#last{
+    padding: 6vw;
+    margin-left: 8vw;
+    margin-top: 15vw;
+    text-align: center;
+    font-size: 4.5vw;
+    color: rgb(0, 145, 255);
+    background-color: rgb(221, 240, 255);
+    width: 71vw;
+    border-radius: 50px;
+    box-shadow:8px 3px 30px 3px black;
+}
