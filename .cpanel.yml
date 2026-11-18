@@ -1,0 +1,10 @@
+
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/elimutai/mnubi.elimutaifa.co.tz/
+    - /bin/cp -p About.css AboutUs.html AdsAge.png BingSiteAuth.xml 
+Contact.css Contact.html Disclaimer.html Privacy.css Privacy.html 
+fav.png fb6.png gx.png index.html inst.png lin3.png mobile.png style.css 
+wp2.png xxd.png yt.png $DEPLOYPATH
+
