@@ -12,20 +12,30 @@ jobs:
       - name: Pata mafaili ya repository
         uses: actions/checkout@v6
 
-      - name: Deploy kupitia FTPS
-        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
-        with:
-          server: hm105.radns.net
-          username: mitandao@mitandao.elimutaifa.co.tz
-          password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ftps
-          port: 21
-          security: strict
-          local-dir: ./
-          server-dir: ./
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/.github/**
-            **/node_modules/**
-            **/.env*
+      - name: Vuta kutoka GitHub na deploy
+        env:
+          CPANEL_HOST: ${{ secrets.CPANEL_HOST }}
+          CPANEL_USER: ${{ secrets.CPANEL_USER }}
+          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
+        run: |
+          auth="Authorization: cpanel ${CPANEL_USER}:${CPANEL_API_TOKEN}"
+          repo="/home/elimutai/repositories/mitandao"
+
+          pull_response="$(curl --fail --silent --show-error --get \
+            --header "$auth" \
+            --data-urlencode "name=mitandao" \
+            --data-urlencode "repository_root=$repo" \
+            --data-urlencode "branch=main" \
+            --data-urlencode 'source_repository={"remote_name":"origin"}' \
+            "https://${CPANEL_HOST}:2083/execute/VersionControl/update")"
+
+          echo "$pull_response" | jq .
+          echo "$pull_response" | jq -e '.status == 1' >/dev/null
+
+          deploy_response="$(curl --fail --silent --show-error --get \
+            --header "$auth" \
+            --data-urlencode "repository_root=$repo" \
+            "https://${CPANEL_HOST}:2083/execute/VersionControlDeployment/create")"
+
+          echo "$deploy_response" | jq .
+          echo "$deploy_response" | jq -e '.status == 1' >/dev/null
