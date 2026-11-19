@@ -1,0 +1,30 @@
+name: Deploy to cPanel
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start cPanel deployment
+        env:
+          CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
+        run: |
+          response="$(curl --fail --silent --show-error \
+            --get \
+            --header "Authorization: cpanel elimutai:${CPANEL_API_TOKEN}" \
+            --data-urlencode "repository_root=/home/elimutai/repositories/mitandao" \
+            "https://hm105.radns.net:2083/execute/VersionControlDeployment/create")"
+
+          echo "$response" | jq .
+          status="$(echo "$response" | jq -r '.result.status // empty')"
+          if [ "$status" != "1" ]; then
+            echo "cPanel haikukubali kuanzisha deployment."
+            exit 1
+          fi
