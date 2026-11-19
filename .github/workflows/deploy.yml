@@ -15,7 +15,7 @@ jobs:
       - name: Deploy kupitia FTPS
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
         with:
-          server: ftp.elimutaifa.co.tz
+          server: hm105.radns.net
           username: mitandao@mitandao.elimutaifa.co.tz
           password: ${{ secrets.FTP_PASSWORD }}
           protocol: ftps
