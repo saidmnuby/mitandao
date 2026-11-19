@@ -1,41 +1,128 @@
-name: Deploy to cPanel
+name: Deploy approved developer project
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
+    inputs:
+      project:
+        description: Project iliyoidhinishwa
+        required: true
+        type: choice
+        options:
+          - mnuby_shop
+      source_sha:
+        description: Commit ya developer repo
+        required: true
+        type: string
+
+permissions:
+  contents: read
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    steps:
-      - name: Pata mafaili ya repository
-        uses: actions/checkout@v6
 
-      - name: Vuta kutoka GitHub na deploy
+    steps:
+      - name: Set approved project details
+        id: config
+        env:
+          PROJECT: ${{ inputs.project }}
+        run: |
+          case "$PROJECT" in
+            mnuby_shop)
+              echo "repo=said-mnuby/mnuby_shop" >> "$GITHUB_OUTPUT"
+              echo "target=/home/elimutai/mitandao.elimutaifa.co.tz" >> "$GITHUB_OUTPUT"
+              echo "token_name=SOURCE_READ_TOKEN" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "Project haijaidhinishwa"
+              exit 1
+              ;;
+          esac
+
+      - name: Download approved repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.config.outputs.repo }}
+          ref: ${{ inputs.source_sha }}
+          token: ${{ secrets[steps.config.outputs.token_name] }}
+          path: source
+
+      - name: Upload project files to cPanel
         env:
           CPANEL_HOST: ${{ secrets.CPANEL_HOST }}
           CPANEL_USER: ${{ secrets.CPANEL_USER }}
           CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
+          TARGET_DIR: ${{ steps.config.outputs.target }}
         run: |
-          auth="Authorization: cpanel ${CPANEL_USER}:${CPANEL_API_TOKEN}"
-          repo="/home/elimutai/repositories/mitandao"
+          python -m pip install requests
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          import requests
 
-          pull_response="$(curl --fail --silent --show-error --get \
-            --header "$auth" \
-            --data-urlencode "name=mitandao" \
-            --data-urlencode "repository_root=$repo" \
-            --data-urlencode "branch=main" \
-            --data-urlencode 'source_repository={"remote_name":"origin"}' \
-            "https://${CPANEL_HOST}:2083/execute/VersionControl/update")"
+          host = os.environ["CPANEL_HOST"]
+          user = os.environ["CPANEL_USER"]
+          api_token = os.environ["CPANEL_API_TOKEN"]
+          source = Path("source").resolve()
+          target = os.environ["TARGET_DIR"].rstrip("/")
+          headers = {"Authorization": f"cpanel {user}:{api_token}"}
 
-          echo "$pull_response" | jq .
-          echo "$pull_response" | jq -e '.status == 1' >/dev/null
+          excluded_dirs = {".git", ".github", "node_modules"}
+          excluded_files = {".cpanel.yml", ".DS_Store", "Thumbs.db"}
+          made_dirs = set()
 
-          deploy_response="$(curl --fail --silent --show-error --get \
-            --header "$auth" \
-            --data-urlencode "repository_root=$repo" \
-            "https://${CPANEL_HOST}:2083/execute/VersionControlDeployment/create")"
+          def skip(path):
+              relative = path.relative_to(source)
+              return (
+                  any(part in excluded_dirs for part in relative.parts)
+                  or path.name in excluded_files
+                  or path.name.startswith(".env")
+              )
 
-          echo "$deploy_response" | jq .
-          echo "$deploy_response" | jq -e '.status == 1' >/dev/null
+          def make_dir(remote_dir):
+              if remote_dir in made_dirs:
+                  return
+              parent, name = remote_dir.rsplit("/", 1)
+              response = requests.get(
+                  f"https://{host}:2083/json-api/cpanel",
+                  headers=headers,
+                  params={
+                      "cpanel_jsonapi_user": user,
+                      "cpanel_jsonapi_apiversion": "2",
+                      "cpanel_jsonapi_module": "Fileman",
+                      "cpanel_jsonapi_func": "mkdir",
+                      "path": parent or "/",
+                      "name": name,
+                      "permissions": "0755",
+                  },
+                  timeout=30,
+              )
+              response.raise_for_status()
+              result = response.json()["cpanelresult"]["event"]["result"]
+              if str(result) != "1":
+                  raise RuntimeError(f"Imeshindikana kuunda folder: {remote_dir}")
+              made_dirs.add(remote_dir)
+
+          for path in sorted(source.rglob("*")):
+              if not path.is_file() or skip(path):
+                  continue
+
+              relative = path.relative_to(source)
+              remote_dir = target
+              for part in relative.parts[:-1]:
+                  remote_dir += "/" + part
+                  make_dir(remote_dir)
+
+              with path.open("rb") as file_handle:
+                  response = requests.post(
+                      f"https://{host}:2083/execute/Fileman/upload_files",
+                      headers=headers,
+                      data={"dir": remote_dir},
+                      files={"file-1": (path.name, file_handle)},
+                      timeout=120,
+                  )
+              response.raise_for_status()
+              if response.json().get("status") != 1:
+                  raise RuntimeError(f"Imeshindikana kupakia: {relative}")
+              print(f"Imepakiwa: {relative}")
+          PY
