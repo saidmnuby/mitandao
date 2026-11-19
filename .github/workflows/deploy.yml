@@ -23,7 +23,7 @@ jobs:
             "https://hm105.radns.net:2083/execute/VersionControlDeployment/create")"
 
           echo "$response" | jq .
-          status="$(echo "$response" | jq -r '.result.status // empty')"
+          status="$(echo "$response" | jq -r '.result.status // .status // empty')"
           if [ "$status" != "1" ]; then
             echo "cPanel haikukubali kuanzisha deployment."
             exit 1
