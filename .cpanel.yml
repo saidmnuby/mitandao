@@ -1,5 +1,5 @@
 ---
 deployment:
   tasks:
-    - export DEPLOYPATH=/home/elimutai/mnubi.elimutaifa.co.tz/
+    - export DEPLOYPATH=/home/elimutai/mitandao.elimutaifa.co.tz/
     - /bin/cp -p *.css *.html *.png BingSiteAuth.xml "$DEPLOYPATH"
