@@ -1,0 +1,8 @@
+{
+  "mnuby_shop": {
+    "repository": "said-mnuby/mnuby_shop",
+    "branch": "main",
+    "target": "/home/elimutai/mitandao.elimutaifa.co.tz",
+    "source_token": "SOURCE_READ_TOKEN"
+  }
+}
