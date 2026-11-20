@@ -4,11 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       project:
-        description: Project iliyoidhinishwa
+        description: Kitambulisho cha mradi kilicho kwenye deploy-projects.json
         required: true
-        type: choice
-        options:
-          - mnuby_shop
+        type: string
       source_sha:
         description: Commit ya developer repo
         required: true
@@ -22,27 +20,55 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Set approved project details
+      - name: Download admin configuration
+        uses: actions/checkout@v4
+        with:
+          path: admin
+
+      - name: Read approved project settings
         id: config
         env:
           PROJECT: ${{ inputs.project }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
         run: |
-          case "$PROJECT" in
-            mnuby_shop)
-              echo "repo=said-mnuby/mnuby_shop" >> "$GITHUB_OUTPUT"
-              echo "target=/home/elimutai/mitandao.elimutaifa.co.tz" >> "$GITHUB_OUTPUT"
-              echo "token_name=SOURCE_READ_TOKEN" >> "$GITHUB_OUTPUT"
-              ;;
-            *)
-              echo "Project haijaidhinishwa"
-              exit 1
-              ;;
-          esac
+          python - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
 
-      - name: Download approved repository
+          project = os.environ["PROJECT"]
+          source_sha = os.environ["SOURCE_SHA"]
+
+          if not re.fullmatch(r"[0-9a-fA-F]{40}", source_sha):
+              raise SystemExit("source_sha si commit SHA halali")
+
+          config_file = Path("admin/deploy-projects.json")
+          projects = json.loads(config_file.read_text(encoding="utf-8"))
+
+          if project not in projects:
+              raise SystemExit(f"Mradi haujaidhinishwa: {project}")
+
+          settings = projects[project]
+          target = settings["target"]
+
+          if not target.startswith("/home/elimutai/"):
+              raise SystemExit("Target path hairuhusiwi")
+
+          output = Path(os.environ["GITHUB_OUTPUT"])
+          output.write_text(
+              f"repository={settings['repository']}\n"
+              f"branch={settings['branch']}\n"
+              f"target={target}\n"
+              f"token_name={settings['source_token']}\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Download approved developer repository
         uses: actions/checkout@v4
         with:
-          repository: ${{ steps.config.outputs.repo }}
+          repository: ${{ steps.config.outputs.repository }}
           ref: ${{ inputs.source_sha }}
           token: ${{ secrets[steps.config.outputs.token_name] }}
           path: source
@@ -56,6 +82,7 @@ jobs:
         run: |
           python -m pip install requests
           python - <<'PY'
+          import json
           import os
           from pathlib import Path
           import requests
@@ -68,20 +95,40 @@ jobs:
           headers = {"Authorization": f"cpanel {user}:{api_token}"}
 
           excluded_dirs = {".git", ".github", "node_modules"}
-          excluded_files = {".cpanel.yml", ".DS_Store", "Thumbs.db"}
-          made_dirs = set()
+          excluded_files = {
+              ".cpanel.yml",
+              ".DS_Store",
+              "Thumbs.db",
+              ".gitignore",
+              ".gitattributes",
+              ".editorconfig",
+          }
+          excluded_docs = {
+              "readme.md",
+              "license",
+              "license.md",
+              "changelog.md",
+              "contributing.md",
+          }
+
+          checked_dirs = set()
+          uploaded = 0
 
           def skip(path):
               relative = path.relative_to(source)
+              name = path.name.lower()
               return (
                   any(part in excluded_dirs for part in relative.parts)
                   or path.name in excluded_files
-                  or path.name.startswith(".env")
+                  or name.startswith(".env")
+                  or name in excluded_docs
               )
 
-          def make_dir(remote_dir):
-              if remote_dir in made_dirs:
+          def ensure_dir(remote_dir):
+              if remote_dir in checked_dirs:
                   return
+              checked_dirs.add(remote_dir)
+
               parent, name = remote_dir.rsplit("/", 1)
               response = requests.get(
                   f"https://{host}:2083/json-api/cpanel",
@@ -99,30 +146,48 @@ jobs:
               )
               response.raise_for_status()
               result = response.json()["cpanelresult"]["event"]["result"]
-              if str(result) != "1":
-                  raise RuntimeError(f"Imeshindikana kuunda folder: {remote_dir}")
-              made_dirs.add(remote_dir)
+              if str(result) == "1":
+                  print(f"Folder imetengenezwa: {remote_dir}")
+              else:
+                  print(f"Folder ipo tayari au cPanel haikuunda: {remote_dir}")
 
           for path in sorted(source.rglob("*")):
-              if not path.is_file() or skip(path):
+              if not path.is_file():
+                  continue
+              if skip(path):
+                  print(f"Umerukwa: {path.relative_to(source)}")
                   continue
 
               relative = path.relative_to(source)
               remote_dir = target
               for part in relative.parts[:-1]:
                   remote_dir += "/" + part
-                  make_dir(remote_dir)
+                  ensure_dir(remote_dir)
 
               with path.open("rb") as file_handle:
                   response = requests.post(
                       f"https://{host}:2083/execute/Fileman/upload_files",
                       headers=headers,
-                      data={"dir": remote_dir},
+                      data={"dir": remote_dir, "overwrite": "1"},
                       files={"file-1": (path.name, file_handle)},
                       timeout=120,
                   )
+
               response.raise_for_status()
-              if response.json().get("status") != 1:
+
+              try:
+                  result = response.json()
+              except ValueError:
+                  raise RuntimeError(
+                      f"Jibu la cPanel halikusomeka kwa {relative}: {response.text}"
+                  )
+
+              if result.get("status") != 1:
+                  print(json.dumps(result, indent=2, ensure_ascii=False))
                   raise RuntimeError(f"Imeshindikana kupakia: {relative}")
-              print(f"Imepakiwa: {relative}")
+
+              uploaded += 1
+              print(f"Imepakiwa/kusasishwa: {relative}")
+
+          print(f"Jumla iliyopakiwa au kusasishwa: {uploaded}")
           PY
