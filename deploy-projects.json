@@ -11,5 +11,13 @@
     "branch": "main",
     "target": "/home/elimutai/mnubi.elimutaifa.co.tz",
     "source_token": "SOURCE_READ_TOKEN_FIRE_WORDS"
+  },
+
+  {
+  "words_game": {
+  "repository": "said-mnuby/words_game",
+    "branch": "main",
+    "target": "/home/elimutai/firewords.elimutaifa.co.tz",
+    "source_token": "SOURCE_READ_TOKEN_WORDS_GAME"
   }
 }
