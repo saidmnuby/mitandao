@@ -6,10 +6,10 @@
     "source_token": "SOURCE_READ_TOKEN"
   },
   
-  "fire_words": {
+  "elimutaifa-labs": {
   "repository": "saidmnuby/elimutaifa-labs",
     "branch": "main",
-    "target": "/home/elimutai/mnubi.elimutaifa.co.tz",
+    "target": "/home/elimutai/db.elimutaifa.co.tz",
     "source_token": "SOURCE_READ_TOKEN_FIRE_WORDS"
   },
 
