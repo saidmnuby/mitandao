@@ -144,6 +144,7 @@ jobs:
           python - <<'PY'
           import json
           import os
+          import zipfile
           from pathlib import Path
           import requests
 
@@ -152,14 +153,13 @@ jobs:
           api_token = os.environ["CPANEL_API_TOKEN"]
           source = Path("source").resolve()
           target = os.environ["TARGET_DIR"].rstrip("/")
+          archive = Path("deployment-package.zip").resolve()
+          remote_archive = f"/home/{user}/.deployment-package-{os.environ['GITHUB_RUN_ID']}.zip"
           headers = {"Authorization": f"cpanel {user}:{api_token}"}
 
           excluded_dirs = {".git", ".github", "node_modules"}
           excluded_files = {".cpanel.yml", ".DS_Store", "Thumbs.db", ".gitignore", ".gitattributes", ".editorconfig"}
           excluded_docs = {"readme.md", "license", "license.md", "changelog.md", "contributing.md"}
-          checked_dirs = set()
-          uploaded = 0
-
           def skip(path):
               relative = path.relative_to(source)
               name = path.name.lower()
@@ -170,68 +170,65 @@ jobs:
                   or name in excluded_docs
               )
 
-          def ensure_dir(remote_dir):
-              if remote_dir in checked_dirs:
-                  return
-              checked_dirs.add(remote_dir)
-              parent, name = remote_dir.rsplit("/", 1)
-              response = requests.get(
-                  f"https://{host}:2083/json-api/cpanel",
+          files = []
+          with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as package:
+              for path in sorted(source.rglob("*")):
+                  if path.is_symlink() or not path.is_file() or skip(path):
+                      continue
+                  relative = path.relative_to(source)
+                  package.write(path, relative.as_posix())
+                  files.append(relative.as_posix())
+
+          if not files:
+              raise RuntimeError("Hakuna mafaili ya kupakia baada ya exclusions")
+          print(f"Kifurushi kimeandaliwa: {len(files)} mafaili, {archive.stat().st_size} bytes")
+
+          with archive.open("rb") as file_handle:
+              response = requests.post(
+                  f"https://{host}:2083/execute/Fileman/upload_files",
                   headers=headers,
-                  params={
-                      "cpanel_jsonapi_user": user,
-                      "cpanel_jsonapi_apiversion": "2",
-                      "cpanel_jsonapi_module": "Fileman",
-                      "cpanel_jsonapi_func": "mkdir",
-                      "path": parent or "/",
-                      "name": name,
-                      "permissions": "0755",
-                  },
-                  timeout=30,
+                  data={"dir": f"/home/{user}"},
+                  files={"file-1": (Path(remote_archive).name, file_handle, "application/zip")},
+                  timeout=(30, 600),
               )
-              response.raise_for_status()
-              result = response.json()["cpanelresult"]["event"]["result"]
-              if str(result) == "1":
-                  print(f"Folder imetengenezwa: {remote_dir}")
-              else:
-                  print(f"Folder ipo tayari au cPanel haikuunda: {remote_dir}")
+          response.raise_for_status()
+          upload_result = response.json()
+          if upload_result.get("status") != 1:
+              raise RuntimeError("cPanel imeshindwa kupokea kifurushi: " + json.dumps(upload_result, ensure_ascii=False))
+          print("Kifurushi kimefika cPanel; kinafunguliwa kwenye document root.")
 
-          for path in sorted(source.rglob("*")):
-              if path.is_symlink():
-                  print(f"Umerukwa (symlink): {path.relative_to(source)}")
-                  continue
-              if not path.is_file():
-                  continue
-              if skip(path):
-                  print(f"Umerukwa: {path.relative_to(source)}")
-                  continue
+          extract_result = requests.get(
+              f"https://{host}:2083/json-api/cpanel",
+              headers=headers,
+              params={
+                  "cpanel_jsonapi_user": user,
+                  "cpanel_jsonapi_apiversion": "2",
+                  "cpanel_jsonapi_module": "Fileman",
+                  "cpanel_jsonapi_func": "fileop",
+                  "op": "extract",
+                  "sourcefiles": remote_archive,
+                  "destfiles": target,
+                  "doubledecode": "0",
+              },
+              timeout=(30, 600),
+          )
+          extract_result.raise_for_status()
+          payload = extract_result.json().get("cpanelresult", {})
+          data = payload.get("data", [])
+          if str(payload.get("event", {}).get("result")) != "1" or not data or str(data[0].get("result")) != "1":
+              raise RuntimeError("cPanel imeshindwa kufungua kifurushi: " + json.dumps(payload, ensure_ascii=False))
+          print(f"Mafaili {len(files)} yamefika kwenye {target}")
 
-              relative = path.relative_to(source)
-              remote_dir = target
-              for part in relative.parts[:-1]:
-                  remote_dir += "/" + part
-                  ensure_dir(remote_dir)
-
-              with path.open("rb") as file_handle:
-                  response = requests.post(
-                      f"https://{host}:2083/execute/Fileman/upload_files",
-                      headers=headers,
-                      data={"dir": remote_dir, "overwrite": "1"},
-                      files={"file-1": (path.name, file_handle)},
-                      timeout=120,
-                  )
-              response.raise_for_status()
-              try:
-                  result = response.json()
-              except ValueError:
-                  raise RuntimeError(f"Jibu la cPanel halikusomeka kwa {relative}: {response.text}")
-              if result.get("status") != 1:
-                  print(json.dumps(result, indent=2, ensure_ascii=False))
-                  raise RuntimeError(f"Imeshindikana kupakia: {relative}")
-              uploaded += 1
-              print(f"Imepakiwa/kusasishwa: {relative}")
-
-          print(f"Jumla iliyopakiwa au kusasishwa: {uploaded}")
+          cleanup = requests.get(
+              f"https://{host}:2083/execute/Fileman/delete_file",
+              headers=headers,
+              params={"path": remote_archive},
+              timeout=30,
+          )
+          cleanup.raise_for_status()
+          if cleanup.json().get("result", {}).get("status") != 1:
+              raise RuntimeError("Deployment imefika, lakini cPanel haikuweza kufuta kifurushi cha muda")
+          print("Kifurushi cha muda kimefutwa.")
           PY
 
       - name: Report deployment result to portal
