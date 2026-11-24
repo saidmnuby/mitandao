@@ -75,7 +75,7 @@ jobs:
         id: source-token
         uses: actions/create-github-app-token@v3
         with:
-          client-id: ${{ vars.ELIMUTAIFA_LABS_CLIENT_ID }}
+          client-id: Iv23liiv5R0UnCqhDgYh
           private-key: ${{ secrets.ELIMUTAIFA_LABS_APP_PRIVATE_KEY }}
           owner: ${{ steps.config.outputs.owner }}
           repositories: ${{ steps.config.outputs.repo }}
