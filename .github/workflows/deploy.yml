@@ -51,7 +51,7 @@ jobs:
           target = os.environ["TARGET"]
           source_sha = os.environ["SOURCE_SHA"]
 
-          if not re.fullmatch(r"[1-9][0-9]*", deployment_id):
+          if deployment_id != "0" and not re.fullmatch(r"[1-9][0-9]*", deployment_id):
               raise SystemExit("deployment_id si halali")
           if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
               raise SystemExit("repository si halali")
@@ -235,7 +235,7 @@ jobs:
           PY
 
       - name: Report deployment result to portal
-        if: always()
+        if: always() && inputs.deployment_id != '0'
         env:
           DEPLOYMENT_ID: ${{ inputs.deployment_id }}
           DEPLOYMENT_STATUS: ${{ job.status }}
