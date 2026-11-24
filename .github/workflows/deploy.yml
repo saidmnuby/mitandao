@@ -3,12 +3,24 @@ name: Deploy approved developer project
 on:
   workflow_dispatch:
     inputs:
-      project:
-        description: Kitambulisho cha mradi kilicho kwenye deploy-projects.json
+      deployment_id:
+        description: Portal deployment record ID
+        required: true
+        type: string
+      repository:
+        description: Approved developer repository
+        required: true
+        type: string
+      branch:
+        description: Approved source branch
+        required: true
+        type: string
+      target:
+        description: Approved cPanel document root
         required: true
         type: string
       source_sha:
-        description: Commit ya developer repo
+        description: Exact source commit to deploy
         required: true
         type: string
 
@@ -18,60 +30,108 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Download admin configuration
-        uses: actions/checkout@v4
-        with:
-          path: admin
-
-      - name: Read approved project settings
+      - name: Validate approved deployment details
         id: config
         env:
-          PROJECT: ${{ inputs.project }}
+          DEPLOYMENT_ID: ${{ inputs.deployment_id }}
+          REPOSITORY: ${{ inputs.repository }}
+          BRANCH: ${{ inputs.branch }}
+          TARGET: ${{ inputs.target }}
           SOURCE_SHA: ${{ inputs.source_sha }}
         run: |
           python - <<'PY'
-          import json
           import os
           import re
           from pathlib import Path
 
-          project = os.environ["PROJECT"]
+          deployment_id = os.environ["DEPLOYMENT_ID"]
+          repository = os.environ["REPOSITORY"]
+          branch = os.environ["BRANCH"]
+          target = os.environ["TARGET"]
           source_sha = os.environ["SOURCE_SHA"]
 
+          if not re.fullmatch(r"[1-9][0-9]*", deployment_id):
+              raise SystemExit("deployment_id si halali")
+          if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
+              raise SystemExit("repository si halali")
+          if not re.fullmatch(r"[A-Za-z0-9._/-]+", branch) or ".." in branch:
+              raise SystemExit("branch si halali")
           if not re.fullmatch(r"[0-9a-fA-F]{40}", source_sha):
               raise SystemExit("source_sha si commit SHA halali")
-
-          config_file = Path("admin/deploy-projects.json")
-          projects = json.loads(config_file.read_text(encoding="utf-8"))
-
-          if project not in projects:
-              raise SystemExit(f"Mradi haujaidhinishwa: {project}")
-
-          settings = projects[project]
-          target = settings["target"]
-
-          if not target.startswith("/home/elimutai/"):
+          if (not re.fullmatch(r"/home/elimutai/[A-Za-z0-9._/-]+", target)
+                  or any(part in (".", "..") for part in target.split("/"))):
               raise SystemExit("Target path hairuhusiwi")
 
+          owner, repo = repository.split("/", 1)
           output = Path(os.environ["GITHUB_OUTPUT"])
           output.write_text(
-              f"repository={settings['repository']}\n"
-              f"branch={settings['branch']}\n"
-              f"target={target}\n"
-              f"token_name={settings['source_token']}\n",
+              f"owner={owner}\nrepo={repo}\ntarget={target}\n",
               encoding="utf-8",
           )
           PY
 
-      - name: Download approved developer repository
-        uses: actions/checkout@v4
+      - name: Create read-only token for the approved repository
+        id: source-token
+        uses: actions/create-github-app-token@v3
         with:
-          repository: ${{ steps.config.outputs.repository }}
+          client-id: ${{ vars.ELIMUTAIFA_LABS_CLIENT_ID }}
+          private-key: ${{ secrets.ELIMUTAIFA_LABS_APP_PRIVATE_KEY }}
+          owner: ${{ steps.config.outputs.owner }}
+          repositories: ${{ steps.config.outputs.repo }}
+          permission-contents: read
+
+      - name: Download approved developer repository
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ inputs.repository }}
           ref: ${{ inputs.source_sha }}
-          token: ${{ secrets[steps.config.outputs.token_name] }}
+          token: ${{ steps.source-token.outputs.token }}
           path: source
+          persist-credentials: false
+
+      - name: Prepare Laravel runtime folders
+        if: hashFiles('source/artisan') != '' && hashFiles('source/composer.json') != ''
+        working-directory: source
+        run: |
+          set -euo pipefail
+          for directory in \
+            storage/app/private \
+            storage/app/public \
+            storage/framework/cache/data \
+            storage/framework/sessions \
+            storage/framework/testing \
+            storage/framework/views \
+            storage/logs \
+            bootstrap/cache; do
+            mkdir -p "$directory"
+            touch "$directory/.deployment-placeholder"
+          done
+
+      - name: Install PHP dependencies
+        if: hashFiles('source/composer.json') != ''
+        working-directory: source
+        run: |
+          set -euo pipefail
+          php --version
+          composer --version
+          composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
+
+      - name: Build frontend assets
+        if: hashFiles('source/package.json') != ''
+        working-directory: source
+        run: |
+          set -euo pipefail
+          if node -e "process.exit(require('./package.json').scripts?.build ? 0 : 1)"; then
+            if [ -f package-lock.json ]; then
+              npm ci --no-audit
+            else
+              npm install --no-audit --no-fund
+            fi
+            npm run build
+          else
+            echo "Hakuna build script kwenye package.json; hatua imerukwa."
+          fi
 
       - name: Upload project files to cPanel
         env:
@@ -95,22 +155,8 @@ jobs:
           headers = {"Authorization": f"cpanel {user}:{api_token}"}
 
           excluded_dirs = {".git", ".github", "node_modules"}
-          excluded_files = {
-              ".cpanel.yml",
-              ".DS_Store",
-              "Thumbs.db",
-              ".gitignore",
-              ".gitattributes",
-              ".editorconfig",
-          }
-          excluded_docs = {
-              "readme.md",
-              "license",
-              "license.md",
-              "changelog.md",
-              "contributing.md",
-          }
-
+          excluded_files = {".cpanel.yml", ".DS_Store", "Thumbs.db", ".gitignore", ".gitattributes", ".editorconfig"}
+          excluded_docs = {"readme.md", "license", "license.md", "changelog.md", "contributing.md"}
           checked_dirs = set()
           uploaded = 0
 
@@ -128,7 +174,6 @@ jobs:
               if remote_dir in checked_dirs:
                   return
               checked_dirs.add(remote_dir)
-
               parent, name = remote_dir.rsplit("/", 1)
               response = requests.get(
                   f"https://{host}:2083/json-api/cpanel",
@@ -152,6 +197,9 @@ jobs:
                   print(f"Folder ipo tayari au cPanel haikuunda: {remote_dir}")
 
           for path in sorted(source.rglob("*")):
+              if path.is_symlink():
+                  print(f"Umerukwa (symlink): {path.relative_to(source)}")
+                  continue
               if not path.is_file():
                   continue
               if skip(path):
@@ -172,22 +220,48 @@ jobs:
                       files={"file-1": (path.name, file_handle)},
                       timeout=120,
                   )
-
               response.raise_for_status()
-
               try:
                   result = response.json()
               except ValueError:
-                  raise RuntimeError(
-                      f"Jibu la cPanel halikusomeka kwa {relative}: {response.text}"
-                  )
-
+                  raise RuntimeError(f"Jibu la cPanel halikusomeka kwa {relative}: {response.text}")
               if result.get("status") != 1:
                   print(json.dumps(result, indent=2, ensure_ascii=False))
                   raise RuntimeError(f"Imeshindikana kupakia: {relative}")
-
               uploaded += 1
               print(f"Imepakiwa/kusasishwa: {relative}")
 
           print(f"Jumla iliyopakiwa au kusasishwa: {uploaded}")
           PY
+
+      - name: Report deployment result to portal
+        if: always()
+        env:
+          DEPLOYMENT_ID: ${{ inputs.deployment_id }}
+          DEPLOYMENT_STATUS: ${{ job.status }}
+          CALLBACK_URL: ${{ vars.ELIMUTAIFA_LABS_CALLBACK_URL }}
+          CALLBACK_SECRET: ${{ secrets.ELIMUTAIFA_LABS_CALLBACK_SECRET }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          python - <<'PY' > callback.json
+          import json
+          import os
+          payload = {
+              "deployment_id": int(os.environ["DEPLOYMENT_ID"]),
+              "status": {
+                  "success": "success",
+                  "failure": "failure",
+                  "cancelled": "cancelled",
+              }.get(os.environ["DEPLOYMENT_STATUS"], "failure"),
+              "source_sha": os.environ["SOURCE_SHA"],
+          }
+          print(json.dumps(payload, separators=(",", ":")))
+          PY
+          timestamp="$(date +%s)"
+          signature="sha256=$(printf '%s.%s' "$timestamp" "$(cat callback.json)" | openssl dgst -sha256 -hmac "$CALLBACK_SECRET" -hex | awk '{print $2}')"
+          curl --fail-with-body --silent --show-error \
+            -X POST "$CALLBACK_URL" \
+            -H "Content-Type: application/json" \
+            -H "X-Deployment-Timestamp: $timestamp" \
+            -H "X-Deployment-Signature: $signature" \
+            --data-binary @callback.json
