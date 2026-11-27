@@ -26,7 +26,7 @@ on:
       storage_limit_mb:
         description: Maximum deployment file size in MB; 0 means no plan cap
         required: true
-        default: "100"
+        default: "50"
         type: string
 
 permissions:
