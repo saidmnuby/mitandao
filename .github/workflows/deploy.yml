@@ -23,6 +23,11 @@ on:
         description: Exact source commit to deploy
         required: true
         type: string
+      storage_limit_mb:
+        description: Maximum deployment file size in MB; 0 means no plan cap
+        required: true
+        default: "100"
+        type: string
 
 permissions:
   contents: read
@@ -39,6 +44,7 @@ jobs:
           BRANCH: ${{ inputs.branch }}
           TARGET: ${{ inputs.target }}
           SOURCE_SHA: ${{ inputs.source_sha }}
+          STORAGE_LIMIT_MB: ${{ inputs.storage_limit_mb }}
         run: |
           python - <<'PY'
           import os
@@ -50,7 +56,10 @@ jobs:
           branch = os.environ["BRANCH"]
           target = os.environ["TARGET"]
           source_sha = os.environ["SOURCE_SHA"]
+          storage_limit_mb = os.environ["STORAGE_LIMIT_MB"]
 
+          if not re.fullmatch(r"0|[1-9][0-9]{0,6}", storage_limit_mb):
+              raise SystemExit("storage_limit_mb si halali")
           if deployment_id != "0" and not re.fullmatch(r"[1-9][0-9]*", deployment_id):
               raise SystemExit("deployment_id si halali")
           if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
@@ -139,6 +148,7 @@ jobs:
           CPANEL_USER: ${{ secrets.CPANEL_USER }}
           CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
           TARGET_DIR: ${{ steps.config.outputs.target }}
+          STORAGE_LIMIT_MB: ${{ inputs.storage_limit_mb }}
         run: |
           python -m pip install requests
           python - <<'PY'
@@ -153,6 +163,7 @@ jobs:
           api_token = os.environ["CPANEL_API_TOKEN"]
           source = Path("source").resolve()
           target = os.environ["TARGET_DIR"].rstrip("/")
+          storage_limit_mb = int(os.environ["STORAGE_LIMIT_MB"])
           archive = Path("deployment-package.zip").resolve()
           remote_archive = f"/home/{user}/.deployment-package-{os.environ['GITHUB_RUN_ID']}.zip"
           headers = {"Authorization": f"cpanel {user}:{api_token}"}
@@ -171,6 +182,7 @@ jobs:
               )
 
           files = []
+          deployment_bytes = 0
           with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as package:
               for path in sorted(source.rglob("*")):
                   if path.is_symlink() or not path.is_file() or skip(path):
@@ -178,10 +190,16 @@ jobs:
                   relative = path.relative_to(source)
                   package.write(path, relative.as_posix())
                   files.append(relative.as_posix())
+                  deployment_bytes += path.stat().st_size
 
           if not files:
               raise RuntimeError("Hakuna mafaili ya kupakia baada ya exclusions")
-          print(f"Kifurushi kimeandaliwa: {len(files)} mafaili, {archive.stat().st_size} bytes")
+          if storage_limit_mb and deployment_bytes > storage_limit_mb * 1024 * 1024:
+              raise RuntimeError(
+                  f"Free plan limit exceeded: deployment files use {deployment_bytes / (1024 * 1024):.2f} MB; "
+                  f"the limit is {storage_limit_mb} MB."
+              )
+          print(f"Kifurushi kimeandaliwa: {len(files)} mafaili, {deployment_bytes} bytes uncompressed")
 
           with archive.open("rb") as file_handle:
               response = requests.post(
